@@ -23,6 +23,12 @@ st.set_page_config(
 # Inject design system CSS
 st.markdown("""
 <style>
+    /* Reduce top padding of main block container */
+    [data-testid="stAppViewBlockContainer"] {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+
     /* Premium Slate Background & Neutral Layout */
     .stApp {
         background-color: #f8fafc !important;
@@ -282,6 +288,58 @@ def parse_file_like(file_obj, filename):
 def parse_uploaded_file(uploaded_file):
     return parse_file_like(uploaded_file, uploaded_file.name)
 
+def render_styled_table(df_data, headers):
+    html = '<table style="width:100%; border-collapse: collapse; margin: 1rem 0; font-family: sans-serif; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">'
+    html += '<tr style="background-color: #0f172a; border-bottom: 2px solid #cbd5e1;">'
+    for h in headers:
+        html += f'<th style="padding: 12px 16px; text-align: left; font-weight: 600; font-size: 0.9rem; color: #ffffff;">{h}</th>'
+    html += '</tr>'
+    
+    for row_idx, row in enumerate(df_data):
+        bg = "#ffffff" if row_idx % 2 == 0 else "#f8fafc"
+        html += f'<tr style="background-color: {bg}; border-bottom: 1px solid #e2e8f0;">'
+        for h in headers:
+            val = row.get(h, "")
+            # Apply styling rules
+            if h == "Confidence":
+                if val == "High":
+                    val_html = '<span style="background-color: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">High</span>'
+                elif val == "Medium":
+                    val_html = '<span style="background-color: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Medium</span>'
+                elif val == "Low":
+                    val_html = '<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Low</span>'
+                else:
+                    val_html = f'<span>{val}</span>'
+            elif h == "Parse Quality" or h == "Status":
+                val_str = str(val)
+                if "Clean" in val_str:
+                    val_html = '<span style="background-color: #d1fae5; color: #065f46; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Clean</span>'
+                elif "Partial" in val_str:
+                    val_html = '<span style="background-color: #fef3c7; color: #92400e; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Partial</span>'
+                elif "Failed" in val_str:
+                    val_html = '<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 9999px; font-weight: 600; font-size: 0.85rem; display: inline-block;">Failed</span>'
+                else:
+                    val_html = f'<span>{val}</span>'
+            elif h in ["Reasoning", "Failure Reason", "Disqualification Reason"]:
+                bullets = []
+                if isinstance(val, list):
+                    bullets = val
+                elif isinstance(val, str):
+                    bullets = [b.strip() for b in val.split("|") if b.strip()]
+                
+                bullets_html = []
+                for b in bullets:
+                    clean_b = b.lstrip("• ")
+                    bullets_html.append(f'<div style="margin-bottom: 4px; text-align: left; line-height: 1.4;">• {clean_b}</div>')
+                val_html = "".join(bullets_html)
+            else:
+                val_html = str(val)
+                
+            html += f'<td style="padding: 12px 16px; font-size: 0.85rem; color: #334155; vertical-align: middle;">{val_html}</td>'
+        html += '</tr>'
+    html += '</table>'
+    return html
+
 # ----------------- MODE 1: Bulk Shortlisting -----------------
 with app_mode[0]:
     st.header("Candidate Shortlisting Engine")
@@ -405,39 +463,100 @@ with app_mode[0]:
                     cand["matched_skills_breakdown"] = matched_details
                     evaluated_candidates.append(cand)
                     
+                # 2.5. Perform deduplication of candidates
+                deduplicated_candidates = []
+                candidates_to_group = []
+                
+                # Process Failed parses immediately (no grouping)
+                for cand in evaluated_candidates:
+                    if cand.get("parse_status") == "Failed":
+                        deduplicated_candidates.append(cand)
+                    else:
+                        candidates_to_group.append(cand)
+                        
+                # Helper to generate unique deduplication key
+                def get_dedup_key(cand):
+                    import re
+                    email = cand.get("email")
+                    if email and isinstance(email, str) and email.strip():
+                        return ("email", email.strip().lower())
+                    
+                    name = cand.get("name") or ""
+                    college = cand.get("college") or ""
+                    
+                    # Handing low-signal partial parses
+                    is_unknown_name = not name or name.strip().lower() == "unknown candidate"
+                    is_empty_college = not college or not college.strip()
+                    
+                    if cand.get("parse_status") == "Partial" and is_unknown_name and is_empty_college:
+                        return ("filename", cand.get("filename", ""))
+                        
+                    norm_name = re.sub(r'[^a-z0-9]', '', name.strip().lower())
+                    norm_college = re.sub(r'[^a-z0-9]', '', college.strip().lower())
+                    return ("name_college", f"{norm_name}_{norm_college}")
+                    
+                from collections import defaultdict
+                groups = defaultdict(list)
+                for cand in candidates_to_group:
+                    key = get_dedup_key(cand)
+                    groups[key].append(cand)
+                    
+                duplicates_removed_count = 0
+                for key, cand_list in groups.items():
+                    if len(cand_list) == 1:
+                        deduplicated_candidates.append(cand_list[0])
+                        continue
+                        
+                    # Determine the best candidate to keep
+                    def sort_key(c):
+                        score = c.get("score") if c.get("score") is not None else -1.0
+                        status_val = 0
+                        status = c.get("parse_status", "Clean")
+                        if status == "Clean":
+                            status_val = 2
+                        elif status == "Partial":
+                            status_val = 1
+                        return (score, status_val, c.get("filename", ""))
+                        
+                    cand_list.sort(key=sort_key)
+                    kept_candidate = cand_list[-1]
+                    deduplicated_candidates.append(kept_candidate)
+                    duplicates_removed_count += len(cand_list) - 1
+                    
+                    # Log dropped duplicates in the parse quality report
+                    kept_filename = kept_candidate["filename"]
+                    for dropped_candidate in cand_list[:-1]:
+                        dropped_filename = dropped_candidate["filename"]
+                        original_reason = parse_quality_data.get(dropped_filename, {}).get("parse_reason", "Parsed successfully")
+                        parse_quality_data[dropped_filename] = {
+                            "parse_status": dropped_candidate.get("parse_status", "Clean"),
+                            "parse_reason": f"Identified as duplicate of {kept_filename} and excluded from ranking. (Original: {original_reason})"
+                        }
+                
                 # Ranking
                 ranking_results = rank_candidates(
-                    candidates_results=evaluated_candidates,
+                    candidates_results=deduplicated_candidates,
                     slots=jd_info.get("slots", 5),
                     min_cgpa=jd_info.get("min_cgpa", 0.0),
                     cutoff_score=cutoff
                 )
                 
-                # Display Statistics Cards
+                # Display Statistics Metric Row
                 shortlist_cnt = len(ranking_results["shortlist"])
                 reserve_cnt = len(ranking_results["reserve_list"])
                 failed_cnt = len(ranking_results["failed_list"])
                 
-                st.markdown(f"""
-                <div class="stat-container">
-                    <div class="stat-card blue">
-                        <div>Evaluated</div>
-                        <div class="stat-val">{total_files}</div>
-                    </div>
-                    <div class="stat-card green">
-                        <div>Shortlisted</div>
-                        <div class="stat-val">{shortlist_cnt}</div>
-                    </div>
-                    <div class="stat-card purple">
-                        <div>Reserve List</div>
-                        <div class="stat-val">{reserve_cnt}</div>
-                    </div>
-                    <div class="stat-card pink">
-                        <div>Failed Parse</div>
-                        <div class="stat-val">{failed_cnt}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                with col_m1:
+                    st.metric("Candidates Evaluated", total_files)
+                with col_m2:
+                    st.metric("Shortlisted", shortlist_cnt)
+                with col_m3:
+                    st.metric("Reserve List", reserve_cnt)
+                with col_m4:
+                    st.metric("Failed Parses", failed_cnt)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
                 
                 # Tabs for results (No emojis)
                 tab1, tab2, tab3, tab4 = st.tabs(["Ranked Shortlist", "Reserve List", "Unqualified Candidates", "Parse Review Queue"])
@@ -452,13 +571,14 @@ with app_mode[0]:
                             df_data.append({
                                 "Rank": idx,
                                 "Name": c["name"],
-                                "Score (/100)": c["score"],
+                                "Score (/100)": f"{c['score']:.2f}" if c['score'] is not None else "N/A",
                                 "Confidence": c["confidence"],
+                                "Parse Quality": c.get("parse_status", "Clean"),
                                 "CGPA": c["cgpa"],
                                 "Email": c["email"],
-                                "Reasoning": " | ".join(c["reasoning"])
+                                "Reasoning": c["reasoning"]
                             })
-                        st.table(pd.DataFrame(df_data).set_index("Rank"))
+                        st.markdown(render_styled_table(df_data, ["Rank", "Name", "Score (/100)", "Confidence", "Parse Quality", "CGPA", "Email", "Reasoning"]), unsafe_allow_html=True)
                         
                 with tab2:
                     st.subheader("Reserve Candidates")
@@ -470,15 +590,16 @@ with app_mode[0]:
                             df_data.append({
                                 "Rank": slots + idx,
                                 "Name": c["name"],
-                                "Score (/100)": c["score"],
+                                "Score (/100)": f"{c['score']:.2f}" if c['score'] is not None else "N/A",
                                 "Confidence": c["confidence"],
+                                "Parse Quality": c.get("parse_status", "Clean"),
                                 "CGPA": c["cgpa"],
                                 "Email": c["email"],
                                 "Points Below Shortlist": f"{c.get('points_below_shortlist', 0.0)} pts",
-                                "Reasoning": " | ".join(c["reasoning"]),
+                                "Reasoning": c["reasoning"],
                                 "Status Reason": "Qualified, but exceeded available slots (Ranked below top N)"
                             })
-                        st.table(pd.DataFrame(df_data).set_index("Rank"))
+                        st.markdown(render_styled_table(df_data, ["Rank", "Name", "Score (/100)", "Confidence", "Parse Quality", "CGPA", "Email", "Points Below Shortlist", "Reasoning", "Status Reason"]), unsafe_allow_html=True)
                         
                 with tab3:
                     st.subheader("Unqualified Candidates")
@@ -490,12 +611,12 @@ with app_mode[0]:
                             df_data.append({
                                 "S.No": idx,
                                 "Name": c.get("name") or "Unknown Candidate",
-                                "Score (/100)": c.get("score") if c.get("score") is not None else "N/A",
+                                "Score (/100)": f"{c.get('score'):.2f}" if c.get("score") is not None else "N/A",
                                 "CGPA": c.get("cgpa") if c.get("cgpa") is not None else "N/A",
                                 "Email": c.get("email") or "N/A",
                                 "Disqualification Reason": c.get("disqualification_reason", "Below score cutoff")
                             })
-                        st.table(pd.DataFrame(df_data).set_index("S.No"))
+                        st.markdown(render_styled_table(df_data, ["S.No", "Name", "Score (/100)", "CGPA", "Email", "Disqualification Reason"]), unsafe_allow_html=True)
                         
                 with tab4:
                     st.subheader("Failed Parse List (Immediate Human Review Required)")
@@ -511,7 +632,7 @@ with app_mode[0]:
                                 "Failure Reason": c.get("parse_reason", "N/A"),
                                 "Recommendation": "Requires Manual Review"
                              })
-                        st.table(pd.DataFrame(df_data).set_index("S.No"))
+                        st.markdown(render_styled_table(df_data, ["S.No", "File Name", "Status", "Failure Reason", "Recommendation"]), unsafe_allow_html=True)
                         
                 # Export CSV Button
                 all_scored = ranking_results["shortlist"] + ranking_results["reserve_list"]
