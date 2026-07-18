@@ -1,0 +1,75 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so content is content is dynamic
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nosenv
+.nuget/
+.pytest_cache/
+pytestdebug.log
+
+# Environments
+.env
+.venv
+venv/
+ENV/
+env/
+.venv*/
+ENV*/
+env*/
+
+# Editor and OS garbage
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Local / Temporary Demo Runs (Do NOT ignore output_results/ as it is a required deliverable!)
+test_run_1/
+test_run_2/
+test_run_3/
+live_jd_demo/
+ocr_demo/
+*.zip
+*.log

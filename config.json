@@ -1,0 +1,98 @@
+{
+  "synonyms": {
+    "react.js": ["react", "reactjs", "react.js", "react js"],
+    "next.js": ["next", "nextjs", "next.js", "next js"],
+    "node.js": ["node", "nodejs", "node.js", "node js"],
+    "git/github": ["git", "github", "git/github", "version control"],
+    "rest api consumption": ["rest api", "rest api consumption", "consuming apis", "api consumption", "http client", "axios", "fetch api"],
+    "rest api design": ["rest api design", "api design", "rest api", "building apis", "fastapi", "express", "flask", "django rest framework", "restful api"],
+    "rest apis (build + consume)": ["rest api", "rest apis", "restful api", "axios", "fetch", "express", "api design", "api consumption"],
+    "html": ["html", "html5"],
+    "css": ["css", "css3", "sass", "scss", "tailwind"],
+    "javascript": ["javascript", "js", "es6"],
+    "typescript": ["typescript", "ts"],
+    "redux/zustand": ["redux", "zustand", "redux toolkit", "state management"],
+    "responsive design": ["responsive design", "responsive", "media queries", "mobile-first"],
+    "jest": ["jest", "unit testing", "testing library"],
+    "python": ["python", "py"],
+    "java": ["java"],
+    "sql or nosql db": ["sql", "nosql", "database", "databases", "mysql", "postgresql", "mongodb", "sqlite", "oracle", "mariadb", "redis"],
+    "docker": ["docker", "containerization", "containers"],
+    "auth (jwt/oauth)": ["jwt", "oauth", "auth", "authentication", "authorization", "oauth2", "passport"],
+    "api docs": ["api docs", "api documentation", "swagger", "postman", "redoc"],
+    "cloud basics": ["aws", "gcp", "azure", "cloud", "heroku", "vercel", "digitalocean"],
+    "database (any)": ["database", "sql", "nosql", "mongodb", "postgresql", "mysql", "sqlite", "redis"],
+    "deployment basics": ["deployment", "deploy", "heroku", "vercel", "aws", "docker", "netlify", "github pages"],
+    "firebase/cloud db": ["firebase", "firestore", "supabase", "dynamodb", "mongodb atlas"],
+    "ci/cd awareness": ["ci/cd", "github actions", "jenkins", "gitlab ci", "continuous integration"],
+    "graphql": ["graphql", "apollo"],
+    "full deployed project": ["deployed", "production url", "live demo"],
+    "mysql/postgresql": ["mysql", "postgresql", "postgres"],
+    "schema design & normalisation": ["schema design", "normalisation", "normalization", "database design", "erd"],
+    "query writing & optimisation": ["query writing", "query optimization", "query optimisation", "sql queries", "explain analyze"],
+    "basic indexing": ["indexing", "indexes", "index"],
+    "mongodb/redis": ["mongodb", "redis"],
+    "stored procedures": ["stored procedures", "triggers", "functions", "pl/sql"],
+    "aggregation pipelines": ["aggregation", "aggregation pipeline", "aggregations"],
+    "erd design": ["erd", "entity relationship diagram"],
+    "postman/swagger": ["postman", "swagger", "api client"],
+    "json handling": ["json", "xml", "serialization"],
+    "any backend language": ["node.js", "python", "java", "golang", "ruby", "php", "c#"],
+    "oauth/api key auth": ["oauth", "api key", "token auth", "hmac"],
+    "webhook handling": ["webhook", "webhooks"],
+    "third-party sdk integration": ["sdk", "stripe sdk", "firebase sdk", "twilio sdk", "integration"],
+    "webhook": ["webhook", "webhooks"],
+    "oauth": ["oauth", "oauth2", "jwt"]
+  },
+  "weights": {
+    "required_multiplier": 1.0,
+    "preferred_multiplier": 0.4,
+    "match_types": {
+      "exact": 1.0,
+      "synonym": 1.0,
+      "partial": 0.5,
+      "implicit": 0.3
+    },
+    "score_distribution": {
+      "skills_percentage": 70,
+      "cgpa_percentage": 30
+    }
+  },
+  "default_job_descriptions": {
+    "frontend_developer": {
+      "role": "Frontend Developer",
+      "required_skills": ["html", "css", "javascript", "react.js", "git/github", "rest api consumption"],
+      "preferred_skills": ["typescript", "redux/zustand", "responsive design", "jest"],
+      "min_cgpa": 6.5,
+      "slots": 8
+    },
+    "backend_developer": {
+      "role": "Backend Developer",
+      "required_skills": ["python", "java", "node.js", "rest api design", "sql or nosql db", "git/github"],
+      "preferred_skills": ["docker", "auth (jwt/oauth)", "api docs", "cloud basics"],
+      "min_cgpa": 6.5,
+      "slots": 10
+    },
+    "full_stack_developer": {
+      "role": "Full Stack Developer",
+      "required_skills": ["react.js", "node.js", "database (any)", "rest apis (build + consume)", "git/github", "deployment basics"],
+      "preferred_skills": ["firebase/cloud db", "ci/cd awareness", "graphql", "full deployed project"],
+      "min_cgpa": 7.0,
+      "slots": 7
+    },
+    "database_developer": {
+      "role": "Database Developer",
+      "required_skills": ["mysql/postgresql", "schema design & normalisation", "query writing & optimisation", "basic indexing"],
+      "preferred_skills": ["mongodb/redis", "stored procedures", "aggregation pipelines", "erd design"],
+      "min_cgpa": 6.0,
+      "slots": 3
+    },
+    "api_integration_developer": {
+      "role": "API Integration Developer",
+      "required_skills": ["rest api consumption", "postman/swagger", "json handling", "any backend language"],
+      "preferred_skills": ["oauth/api key auth", "webhook handling", "third-party sdk integration", "api docs"],
+      "min_cgpa": 6.0,
+      "slots": 2
+    }
+  }
+}
