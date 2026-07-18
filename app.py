@@ -440,7 +440,7 @@ with app_mode[0]:
                 """, unsafe_allow_html=True)
                 
                 # Tabs for results (No emojis)
-                tab1, tab2, tab3 = st.tabs(["Ranked Shortlist", "Reserve List", "Parse Review Queue"])
+                tab1, tab2, tab3, tab4 = st.tabs(["Ranked Shortlist", "Reserve List", "Unqualified Candidates", "Parse Review Queue"])
                 
                 with tab1:
                     st.subheader(f"Ranked Shortlist (Top {slots} Slots)")
@@ -468,29 +468,50 @@ with app_mode[0]:
                         df_data = []
                         for idx, c in enumerate(ranking_results["reserve_list"], 1):
                             df_data.append({
+                                "Rank": slots + idx,
                                 "Name": c["name"],
                                 "Score (/100)": c["score"],
                                 "Confidence": c["confidence"],
                                 "CGPA": c["cgpa"],
                                 "Email": c["email"],
-                                "Reasoning": " | ".join(c["reasoning"])
+                                "Points Below Shortlist": f"{c.get('points_below_shortlist', 0.0)} pts",
+                                "Reasoning": " | ".join(c["reasoning"]),
+                                "Status Reason": "Qualified, but exceeded available slots (Ranked below top N)"
                             })
-                        st.dataframe(pd.DataFrame(df_data), use_container_width=True)
+                        st.table(pd.DataFrame(df_data).set_index("Rank"))
                         
                 with tab3:
+                    st.subheader("Unqualified Candidates")
+                    if not ranking_results["unqualified_list"]:
+                        st.success("No unqualified candidates.")
+                    else:
+                        df_data = []
+                        for idx, c in enumerate(ranking_results["unqualified_list"], 1):
+                            df_data.append({
+                                "S.No": idx,
+                                "Name": c.get("name") or "Unknown Candidate",
+                                "Score (/100)": c.get("score") if c.get("score") is not None else "N/A",
+                                "CGPA": c.get("cgpa") if c.get("cgpa") is not None else "N/A",
+                                "Email": c.get("email") or "N/A",
+                                "Disqualification Reason": c.get("disqualification_reason", "Below score cutoff")
+                            })
+                        st.table(pd.DataFrame(df_data).set_index("S.No"))
+                        
+                with tab4:
                     st.subheader("Failed Parse List (Immediate Human Review Required)")
                     if not ranking_results["failed_list"]:
                         st.success("No file parsing failures encountered.")
                     else:
                         df_data = []
-                        for c in ranking_results["failed_list"]:
+                        for idx, c in enumerate(ranking_results["failed_list"], 1):
                             df_data.append({
+                                "S.No": idx,
                                 "File Name": c.get("filename", "Unknown"),
                                 "Status": c["parse_status"],
                                 "Failure Reason": c.get("parse_reason", "N/A"),
                                 "Recommendation": "Requires Manual Review"
-                            })
-                        st.dataframe(pd.DataFrame(df_data), use_container_width=True)
+                             })
+                        st.table(pd.DataFrame(df_data).set_index("S.No"))
                         
                 # Export CSV Button
                 all_scored = ranking_results["shortlist"] + ranking_results["reserve_list"]

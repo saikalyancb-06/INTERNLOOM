@@ -43,7 +43,14 @@ def rank_candidates(candidates_results, slots, min_cgpa=0.0, cutoff_score=50.0):
             else:
                 reserve_list.append(candidate)
         else:
+            candidate["disqualification_reason"] = f"Below score cutoff ({cutoff_score} required, candidate scored {candidate['score']})"
             unqualified_list.append(candidate)
+            
+    # Calculate points below shortlist for reserve list
+    shortlist_cutoff_score = shortlist[-1]["score"] if shortlist else 0.0
+    for candidate in reserve_list:
+        diff = shortlist_cutoff_score - candidate["score"]
+        candidate["points_below_shortlist"] = round(diff, 2)
             
     return {
         "shortlist": shortlist,

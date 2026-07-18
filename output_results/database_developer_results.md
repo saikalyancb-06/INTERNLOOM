@@ -1,11 +1,14 @@
 # InternLoom Shortlist Report: Database Developer
 
 ## Executive Summary
-- **Candidates Evaluated**: 221
+- **Candidates Evaluated**: 135
 - **Candidates Shortlisted**: 3 (Slots: 3)
 - **Reserve List Count**: 0
 - **Parse Failures**: 0
+- **Duplicates Removed**: 86
+- **Commonly Missing Required Skill**: schema design & normalisation (missing in 100.0%)
 - **Score Cutoff Used**: 50.0/100
+- **Scoring Formula**: 70% skill match + 30% normalized CGPA, adjusted for signal conflicts (see design_decisions.md)
 
 ## Ranked Shortlist
 | Rank | Candidate Name | Score | Confidence | Parse Quality | Top Match Reasoning |

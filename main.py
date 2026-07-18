@@ -99,12 +99,42 @@ def parse_unstructured_jd(jd_text, config_synonyms):
         preferred_skills = required_skills[split_point:]
         required_skills = required_skills[:split_point]
         
+    warning_unreliable = False
+    if not required_skills and not preferred_skills:
+        config = load_config()
+        default_jds = config.get("default_job_descriptions", {})
+        
+        inferred_key = None
+        search_target = (role + " " + jd_text).lower()
+        if "frontend" in search_target:
+            inferred_key = "frontend_developer"
+        elif "backend" in search_target:
+            inferred_key = "backend_developer"
+        elif "full stack" in search_target or "fullstack" in search_target:
+            inferred_key = "full_stack_developer"
+        elif "database" in search_target or "db" in search_target or "sql" in search_target:
+            inferred_key = "database_developer"
+        elif "api" in search_target or "integration" in search_target:
+            inferred_key = "api_integration_developer"
+            
+        if inferred_key and inferred_key in default_jds:
+            defaults = default_jds[inferred_key]
+            required_skills = defaults.get("required_skills", [])
+            preferred_skills = defaults.get("preferred_skills", [])
+            min_cgpa = defaults.get("min_cgpa", min_cgpa)
+            role = defaults.get("role", role)
+        else:
+            required_skills = ["general"]
+            preferred_skills = []
+            warning_unreliable = True
+            
     return {
         "role": role,
-        "required_skills": required_skills or ["general"],
+        "required_skills": required_skills,
         "preferred_skills": preferred_skills,
         "min_cgpa": min_cgpa,
-        "slots": 5
+        "slots": 5,
+        "warning_unreliable": warning_unreliable
     }
 
 def main():
@@ -239,6 +269,13 @@ def main():
             matched_details=matched_details
         )
         
+        if jd_info.get("warning_unreliable"):
+            confidence = "Low"
+            # Append warning if not already in reasoning
+            warning_msg = "No explicit skills detected in JD — scoring may be unreliable."
+            if warning_msg not in reasoning:
+                reasoning.append(warning_msg)
+        
         cand["score"] = final_score
         cand["confidence"] = confidence
         cand["reasoning"] = reasoning
@@ -246,9 +283,78 @@ def main():
         
         evaluated_candidates.append(cand)
         
+    # 2.5. Perform deduplication of candidates
+    deduplicated_candidates = []
+    candidates_to_group = []
+    
+    # Process Failed parses immediately (no grouping)
+    for cand in evaluated_candidates:
+        if cand.get("parse_status") == "Failed":
+            deduplicated_candidates.append(cand)
+        else:
+            candidates_to_group.append(cand)
+            
+    # Helper to generate unique deduplication key
+    def get_dedup_key(cand):
+        email = cand.get("email")
+        if email and isinstance(email, str) and email.strip():
+            return ("email", email.strip().lower())
+        
+        name = cand.get("name") or ""
+        college = cand.get("college") or ""
+        
+        # Handing low-signal partial parses
+        is_unknown_name = not name or name.strip().lower() == "unknown candidate"
+        is_empty_college = not college or not college.strip()
+        
+        if cand.get("parse_status") == "Partial" and is_unknown_name and is_empty_college:
+            return ("filename", cand.get("filename", ""))
+            
+        norm_name = re.sub(r'[^a-z0-9]', '', name.strip().lower())
+        norm_college = re.sub(r'[^a-z0-9]', '', college.strip().lower())
+        return ("name_college", f"{norm_name}_{norm_college}")
+        
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for cand in candidates_to_group:
+        key = get_dedup_key(cand)
+        groups[key].append(cand)
+        
+    duplicates_removed_count = 0
+    for key, cand_list in groups.items():
+        if len(cand_list) == 1:
+            deduplicated_candidates.append(cand_list[0])
+            continue
+            
+        # Determine the best candidate to keep
+        def sort_key(c):
+            score = c.get("score") if c.get("score") is not None else -1.0
+            status_val = 0
+            status = c.get("parse_status", "Clean")
+            if status == "Clean":
+                status_val = 2
+            elif status == "Partial":
+                status_val = 1
+            return (score, status_val, c.get("filename", ""))
+            
+        cand_list.sort(key=sort_key)
+        kept_candidate = cand_list[-1]
+        deduplicated_candidates.append(kept_candidate)
+        duplicates_removed_count += len(cand_list) - 1
+        
+        # Log dropped duplicates in the parse quality report
+        kept_filename = kept_candidate["filename"]
+        for dropped_candidate in cand_list[:-1]:
+            dropped_filename = dropped_candidate["filename"]
+            original_reason = parse_quality_data.get(dropped_filename, {}).get("parse_reason", "Parsed successfully")
+            parse_quality_data[dropped_filename] = {
+                "parse_status": dropped_candidate.get("parse_status", "Clean"),
+                "parse_reason": f"Identified as duplicate of {kept_filename} and excluded from ranking. (Original: {original_reason})"
+            }
+
     # 3. Perform slot-aware ranking
     ranking_results = rank_candidates(
-        candidates_results=evaluated_candidates,
+        candidates_results=deduplicated_candidates,
         slots=jd_info.get("slots", 5),
         min_cgpa=jd_info.get("min_cgpa", 0.0),
         cutoff_score=args.cutoff
@@ -264,11 +370,32 @@ def main():
             clean_list.append(c_copy)
         clean_results[group] = clean_list
         
+    # Calculate commonly missing required skills across deduplicated scored candidates
+    from collections import Counter
+    missing_required_counts = Counter()
+    scored_count = 0
+    for cand in deduplicated_candidates:
+        if cand.get("score") is None or cand.get("parse_status") == "Failed":
+            continue
+        scored_count += 1
+        for md in cand.get("matched_skills_breakdown", []):
+            if md.get("category") == "required" and md.get("match_type") is None:
+                missing_required_counts[md["skill"]] += 1
+                
+    missing_skill_gap = ""
+    if scored_count > 0 and missing_required_counts:
+        top_skill, count = missing_required_counts.most_common(1)[0]
+        pct = round((count / scored_count) * 100.0, 1)
+        missing_skill_gap = f"{top_skill} (missing in {pct}%)"
+        
     # 4. Save results and reports
     os.makedirs(args.output, exist_ok=True)
     
     json_path = save_outputs(jd_name, clean_results, args.output)
-    md_content = generate_markdown_report(jd_name, jd_info, clean_results, args.cutoff)
+    md_content = generate_markdown_report(jd_name, jd_info, clean_results, args.cutoff, 
+                                          duplicates_removed=duplicates_removed_count,
+                                          missing_skill_gap=missing_skill_gap,
+                                          warning_unreliable=jd_info.get("warning_unreliable", False))
     
     md_path = os.path.join(args.output, f"{jd_name}_results.md")
     with open(md_path, "w", encoding="utf-8") as f:
