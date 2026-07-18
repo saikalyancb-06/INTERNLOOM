@@ -65,16 +65,18 @@ Thumbs.db
 *.sln
 *.swp
 
-# Local / Temporary Demo Runs (Do NOT ignore output_results/ as it is a required deliverable!)
-test_run_1/
-test_run_2/
-test_run_3/
-live_demo/
-live_jd_demo/
-ocr_demo/
-ds_intern_test_results/
-test_inferred_jd/
-test_unreliable_jd/
-vague_jd_check/
+# Local / Temporary Demo Runs (Do NOT ignore sample_outputs/ as it is a required deliverable!)
+/test_run_1/
+/test_run_2/
+/test_run_3/
+/live_demo/
+/live_jd_demo/
+/ocr_demo/
+/ds_intern_test_results/
+/test_inferred_jd/
+/test_unreliable_jd/
+/vague_jd_check/
+/output_results/
 *.zip
 *.log
+
